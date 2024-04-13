@@ -1,14 +1,16 @@
 
 #include "server.h"
 #include "stdafx.h"
-#include "server.h"
-#include <iostream>
-using namespace std;
+
+#include <spdlog/spdlog.h>
+#include <fmt/format.h>
+
+
 
 void my_task()
 {
     std::this_thread::sleep_for(std::chrono::seconds(2));
-    cout << "my_task"  <<endl;
+    SPDLOG_INFO("my_task finish!");
 }
 
 int main()
@@ -28,6 +30,5 @@ int main()
 
     // //运行 io_context 直到它用完为止。
     // io_context.run();
-
-    cout << "server exit" <<endl;
+    SPDLOG_INFO("server exit");
 }

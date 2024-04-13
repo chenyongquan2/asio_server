@@ -7,7 +7,6 @@
 #include <chrono>
 #include <atomic>
 #include <random>
-#include <iostream>
 
 #include <asio.hpp>
 #include <asio/co_spawn.hpp>
@@ -65,8 +64,7 @@ void TcpServer::onSocketAccept(std::shared_ptr<asio::ip::tcp::socket> sockCli)
 {
     char* buf = new char[0xFF];
     SPDLOG_INFO("new conn from {}:{}", sockCli->remote_endpoint().address().to_string() ,sockCli->remote_endpoint().port());
-	std::cout << "have accepted client , ip:" << sockCli->remote_endpoint().address() 
-        << ",port:" << sockCli->remote_endpoint().port() << std::endl;
+
 	
     //1缓存区都需要通过buffer函数来构造函数可接受的缓存区结构体，否则会报错误
     //buffer函数，它的作用其实就是构造一个结构体,大致如下：
@@ -83,13 +81,12 @@ void TcpServer::onSocketRecv(char* buf, std::shared_ptr<asio::ip::tcp::socket> s
 {
     try
     {
-        std::cout << "server recv msg:" << buf << endl;
+        SPDLOG_INFO("recv msg {}", buf);
         sockCli->async_send(asio::buffer(buf,0xFF), std::bind(&TcpServer::onSocketSend, this, buf, sockCli));
     }
     catch (const std::exception& e)
     {
-        cout << "";
-		cout << e.what();
+        SPDLOG_INFO("exception occured: {}", e.what());
 		delete[] buf;
     }
 }
@@ -97,12 +94,11 @@ void TcpServer::onSocketRecv(char* buf, std::shared_ptr<asio::ip::tcp::socket> s
 void TcpServer::onSocketSend(char* buf, std::shared_ptr<asio::ip::tcp::socket> sockCli)
 {
     try {
-        std::cout << "server send msg:" << buf << endl;
+        SPDLOG_INFO("send msg {}", buf);
 		sockCli->async_receive(asio::buffer(buf, 0xFF), std::bind(&TcpServer::onSocketRecv, this, buf, sockCli));
 	}
 	catch (std::exception& e) {
-		cout << "";
-		cout << e.what();
+		SPDLOG_ERROR("exception occured: {}", e.what());
 		delete[] buf;
 	}
 }

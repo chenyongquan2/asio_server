@@ -1,4 +1,7 @@
-#include<iostream>
+#include <iostream>
+#include <spdlog/spdlog.h>
+#include <fmt/format.h>
+
 #include <asio.hpp>
 #include <asio/co_spawn.hpp>
 #include <asio/detached.hpp>
@@ -34,7 +37,8 @@ int main() {
 		sock.send(asio::buffer(buf));
 		memset(buf, 0, 0xFF);
 		sock.receive(buffer(buf));
-		cout << buf<<endl;
+		SPDLOG_INFO("recv msg {}", buf);
+
         std::this_thread::sleep_for(std::chrono::seconds(2));
 	}
 	sock.close();
