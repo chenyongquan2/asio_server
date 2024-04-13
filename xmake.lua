@@ -36,7 +36,7 @@ add_requires("conan::asio/1.24.0", { alias = "asio" })
 add_requires("spdlog")
 add_requires("fmt", { configs = {header_only = true}})
 
-target "asio_srever"
+
 
 add_cxxflags ("cl::/Zc:__cplusplus")
 -- temp no warning
@@ -45,9 +45,21 @@ add_cxxflags ("/bigobj")
 
 set_languages "c++20"
 
-
-
 add_packages("asio","spdlog","fmt")
 
+-- case1)单项目
+--target "asio_srever"
+-- add_files("src/*.cpp")
 
-add_files "src/*.cpp"
+-- case2)多项目，可定义多个项目，每个target包含不同的文件，以及可以exclude排除不相关的cpp编译单元
+-- 也可以所有的project: xmake 或者 xmake -ba
+-- 编译单个项目: 
+-- xmake -b client 
+target("client")
+	add_files("src/*.cpp")
+	remove_files( "src/server.cpp", "src/servermain.cpp")
+
+-- xmake -b client 
+target("server")
+	add_files("src/*.cpp")
+	remove_files( "src/clientmain.cpp")
