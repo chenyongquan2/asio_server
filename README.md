@@ -4,7 +4,7 @@ a cpp server and client using asio
 # 2)Perpare 
 you should install the xmake firstly, and make sure to add the xmake into your env path
 
-# 3)How to bulild
+# 3)How to build
 ## a)Config
 xmake f -p windows -a x64 -m debug --toolchain=msvc -vyD
 ## b)Build
