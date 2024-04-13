@@ -1,0 +1,12 @@
+{
+    "cmd":"select_account",
+    "message_type":"GATEWAY","request_id":"7c3d26097b2f4d7a8b9000e732ca1d15",
+    "request_return_type":1,"request_time":1709719621,
+    "request_zone":"C","server_id":"010a-aa61da11e",
+    "server_type":"trading_system",
+    "request_key": "6c42b7e10e0a081cd1352ae3fb845d31",
+    "request_data":
+    {
+            "login":8816334
+    }
+}
