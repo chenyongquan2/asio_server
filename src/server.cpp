@@ -1,6 +1,5 @@
 #include "stdafx.h"
 
-
 #include <cstddef>
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
@@ -30,6 +29,8 @@ using asio::use_awaitable;
 using asio::ip::tcp;
 namespace this_coro = asio::this_coro;
 
+using namespace std;
+
 //静态成员初始化
 ThreadPool TcpServer::threadpool_;
 asio::io_context TcpServer::io_context_;
@@ -43,59 +44,67 @@ TcpServer::TcpServer(std::string ip_address, unsigned short port)
 
 void TcpServer::Start()
 {
-    asio::ip::tcp::acceptor acceptor(io_context_);
     asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), port_);
+    asio::ip::tcp::acceptor acptr(io_context_, endpoint);
 
-    std::error_code ec;
-    acceptor.open(endpoint.protocol(), ec);
-    if (ec)
-        return;
-    acceptor.bind(endpoint, ec);
+    auto socket = std::make_shared<tcp::socket>(io_context_);
 
-    // if(!ec)
-    // {
-    //     SPDLOG_ERROR("bind fail");
-    // }
-    //acceptor.close();
+    //async异步的情况下，程序不会卡在async_accept这里，它仅仅只是提交了一个接受客户端连接的请求，等待系统执行完成后，调用对应的处理函数就行了
+    
+    //这个bind函数，其主要作用就是更改函数特性，
+    //比如我这里，第一个参数为要更改的函数，第二参数是我想要传给这个函数的参数，
+    //bind函数接收到这两个参数，就会返回一个无参函数，就可以符合async_accept第二个参数的要求。
+    //每当程序调用这个返回的无参函数时，都会将这个sock变量传入实际的sock_accept函数进行调用
+    acptr.async_accept(*socket, std::bind(&TcpServer::onSocketAccept, this, socket));
 
-    //开启一个协程去进行listen
-    co_spawn(io_context_, Listener(), detached);
-
-    //启动事件循环，以此来消费io事件
-    //std::this_thread::sleep_for(std::chrono::seconds(3));
-    //io_context_.run();
-
-    GetThreadPool().AddTask<void>([&, this]() {
-            try {
-                asio::signal_set signals(io_context_, SIGINT, SIGTERM);
-                signals.async_wait([&](auto, auto) { io_context_.stop(); });    
-                io_context_.run();//启动一个 I/O 上下文的事件循环。不断的去事件循环，消费io事件。
-                std::cout << "io_context_.run() finish"  << std::endl;
-            } catch (std::exception& e) {
-                SPDLOG_ERROR("TcpServer Start exception: {}", e.what());
-            }
-    }
-    );
-    //std::this_thread::sleep_for(std::chrono::seconds(3));
+    //而run函数，只要还有一个请求没有完成，它就不会返回。
     io_context_.run();
 }
 
-asio::awaitable<void> TcpServer::Listener()
+void TcpServer::onSocketAccept(std::shared_ptr<asio::ip::tcp::socket> sockCli)
 {
-    tcp::acceptor acceptor(io_context_, { asio::ip::make_address(ip_address_), port_ });
-    // asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), port_);
-    // tcp::acceptor acceptor(io_context_, endpoint);
-    for(;;)//不断阻塞去等待新连接
-    {
-        auto socket = std::make_shared<tcp::socket>(io_context_);
-        co_await acceptor.async_accept(*socket, use_awaitable);
+    char* buf = new char[0xFF];
+    SPDLOG_INFO("new conn from {}:{}", sockCli->remote_endpoint().address().to_string() ,sockCli->remote_endpoint().port());
+	std::cout << "have accepted client , ip:" << sockCli->remote_endpoint().address() 
+        << ",port:" << sockCli->remote_endpoint().port() << std::endl;
+	
+    //1缓存区都需要通过buffer函数来构造函数可接受的缓存区结构体，否则会报错误
+    //buffer函数，它的作用其实就是构造一个结构体,大致如下：
+    // struct{
+    //     void* buf;
+    //     s_size len;
+    // }
+    //该网络模块中所有的收发数据操作，都不接受单独的字符串，而是这样一个结构体，分别为缓存区的首地址以及缓存区的大小。
 
-        //开启一个新的协程去让这个socket去处理业务，防止把当前负责accept的线程给阻塞
-        //绑定io_context
-        //使用 co_spawn 函数将 Serve 函数作为一个协程任务提交给 io_context_
-        co_spawn(io_context_,Serve(socket),detached);
+    sockCli->async_receive(asio::buffer(buf, 0xFF), std::bind(&TcpServer::onSocketRecv, this, buf, sockCli));
+}
+
+void TcpServer::onSocketRecv(char* buf, std::shared_ptr<asio::ip::tcp::socket> sockCli)
+{
+    try
+    {
+        std::cout << "server recv msg:" << buf << endl;
+        sockCli->async_send(asio::buffer(buf,0xFF), std::bind(&TcpServer::onSocketSend, this, buf, sockCli));
     }
-    co_return;
+    catch (const std::exception& e)
+    {
+        cout << "";
+		cout << e.what();
+		delete[] buf;
+    }
+}
+
+void TcpServer::onSocketSend(char* buf, std::shared_ptr<asio::ip::tcp::socket> sockCli)
+{
+    try {
+        std::cout << "server send msg:" << buf << endl;
+		sockCli->async_receive(asio::buffer(buf, 0xFF), std::bind(&TcpServer::onSocketRecv, this, buf, sockCli));
+	}
+	catch (std::exception& e) {
+		cout << "";
+		cout << e.what();
+		delete[] buf;
+	}
 }
 
 awaitable<void> TcpServer::Serve(std::shared_ptr<tcp::socket> socket)

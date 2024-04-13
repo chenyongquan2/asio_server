@@ -32,7 +32,11 @@ public:
     
 
 private:
-    asio::awaitable<void> Listener();
+    void onSocketAccept(std::shared_ptr<asio::ip::tcp::socket> socket);
+    void onSocketRecv(char* buf, std::shared_ptr<asio::ip::tcp::socket> socket);
+    void onSocketSend(char* buf, std::shared_ptr<asio::ip::tcp::socket> socket);
+
+private:
     asio::awaitable<void> Serve(std::shared_ptr<asio::ip::tcp::socket> socket);
 
     asio::awaitable<std::string> ReadMessage(std::shared_ptr<asio::ip::tcp::socket> socket);
