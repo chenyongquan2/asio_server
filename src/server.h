@@ -13,8 +13,8 @@
 #include <string>
 #include <atomic>
 #include <memory>
+#include <sasl/sasl.h>
 
-using namespace std;
 
 class ThreadPool;
 struct RequestContext;
@@ -43,6 +43,12 @@ private:
 
     void TcpRequestHandle(RequestContext & request_context);
     void RequestTaskHandle(RequestContext request_context);
+
+private:
+    //sasl
+    int saslServerInit();
+    int saslServerStart();
+
 private:
     static asio::io_context io_context_;
 
@@ -50,4 +56,5 @@ private:
     unsigned short port_;
 
     static ThreadPool threadpool_;
+    sasl_conn_t* conn_ = nullptr;
 };

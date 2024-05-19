@@ -41,8 +41,198 @@ TcpServer::TcpServer(std::string ip_address, unsigned short port)
 
 }
 
+std::string getauthorizationid() {
+    return "shaq";
+}
+
+std::string getusername() {
+    return "shaq";
+}
+
+std::string getsimple() {
+    // 这里您需要提供客户端用户的密码
+    return "shaq";
+}
+
+std::string getrealm() {
+    return "CPPTEAM.DOO.COM";
+}
+
+int TcpServer::saslServerInit()
+{
+    // 初始化 SASL 环境
+    int rc;
+    //sasl_conn_t* conn;
+    sasl_callback_t server_callbacks[] = {
+    {
+        .id = SASL_CB_AUTHNAME,
+        .proc = (int (*)(void))getauthorizationid,
+        .context = NULL
+    },
+    {
+        .id = SASL_CB_USER,
+        .proc = (int (*)(void))getusername,
+        .context = NULL
+    },
+    {
+        .id = SASL_CB_PASS,
+        .proc = (int (*)(void))getsimple,
+        .context = NULL
+    },
+    {
+        .id = SASL_CB_GETREALM,
+        .proc = (int (*)(void))getrealm,
+        .context = NULL
+    },
+    {
+        .id = SASL_CB_LIST_END,
+        .proc = NULL,
+        .context = NULL
+    }
+};
+    rc = sasl_server_init(server_callbacks, "shaq");
+    if (rc != SASL_OK) {
+        SPDLOG_ERROR("Failed to initialize SASL: {}", rc);
+        return 1;
+    }
+    // 创建 SASL 连接
+    rc = sasl_server_new("shaq", "127.0.0.1", "10.1.14.41", nullptr, nullptr, nullptr, 0, &conn_);
+    SPDLOG_INFO("sasl_server_new result: {}", rc);
+    if (rc != SASL_OK) {
+        SPDLOG_ERROR("Failed to create SASL connection: {}", rc);
+        return 1;
+    }
+
+    {
+        // {
+        //     const char ** ppSMech =  sasl_global_listmech();
+        //     SPDLOG_INFO("sasl_global_listmech result: {}", *ppSMech);
+        // }
+
+        // 检查是否支持 GSSAPI 机制
+        const char *result, *tmp;
+        unsigned int len;
+        int ret;
+        ret  = sasl_listmech(conn_, NULL, "", ",", "", &result, &len, NULL);
+        SPDLOG_INFO("sasl_listmech result: {}, listmech:{}", ret, result);
+        if (ret != SASL_OK) {
+            SPDLOG_INFO("sasl_listmech failed result: {}", ret);
+            // 处理获取可用机制列表失败的情况
+            return 1;
+        }
+
+        // 搜索 result 字符串中是否包含 "GSSAPI"
+        tmp = result;
+        while ((tmp = strstr(tmp, "GSSAPI")) != NULL) {
+            // GSSAPI 机制可用
+            SPDLOG_INFO("GSSAPI mechanism is supported");
+            break;
+        }
+
+        if (tmp == NULL) {
+            // GSSAPI 机制不可用
+            SPDLOG_ERROR("GSSAPI mechanism is not supported");
+        }
+	}
+
+
+    //sasl_server_new("myservice", "localhost", NULL, NULL, NULL, callbacks, 0, &conn);
+    // 设置 SASL 机制为 GSSAPI
+
+// #define SASL_SSF_EXTERNAL  100	/* external SSF active (sasl_ssf_t *) */
+// #define SASL_SEC_PROPS     101	/* sasl_security_properties_t */
+// #define SASL_AUTH_EXTERNAL 102	/* external authentication ID (const char *) */
+
+    //const char *mechlist = "KERBEROS_V4,SCRAM-SHA-1,DIGEST-MD5,NTLM,LOGIN,PLAIN";
+    //const char *mechlist = "GSSAPI,SCRAM-SHA-1,DIGEST-MD5,NTLM,LOGIN,PLAIN,ANONYMOUS";
+    //rc = sasl_setprop(conn_, SASL_AUTH_EXTERNAL, mechlist);
+    rc = sasl_setprop(conn_, SASL_AUTH_EXTERNAL, "GSSAPI");
+    SPDLOG_INFO("sasl_setprop result: {}", rc);
+
+    {
+        // {
+        //     const char ** ppSMech =  sasl_global_listmech();
+        //     SPDLOG_INFO("sasl_global_listmech result: {}", *ppSMech);
+        // }
+        // 检查是否支持 GSSAPI 机制
+        const char *result, *tmp;
+        unsigned int len;
+        int ret;
+        ret  = sasl_listmech(conn_, NULL, "(", ",", ")", &result, &len, NULL);
+        SPDLOG_INFO("sasl_listmech result: {}, listmech:{}", ret, result);
+        if (ret != SASL_OK) {
+            SPDLOG_INFO("sasl_listmech failed result: {}", ret);
+            // 处理获取可用机制列表失败的情况
+            return 1;
+        }
+
+        // 搜索 result 字符串中是否包含 "GSSAPI"
+        tmp = result;
+        while ((tmp = strstr(tmp, "GSSAPI")) != NULL) {
+            // GSSAPI 机制可用
+            SPDLOG_INFO("GSSAPI mechanism is supported");
+            break;
+        }
+
+        if (tmp == NULL) {
+            // GSSAPI 机制不可用
+            SPDLOG_ERROR("GSSAPI mechanism is not supported");
+        }
+	}
+
+    return rc;
+}
+
+int TcpServer::saslServerStart()
+{
+    // 进行 SASL 身份验证
+    const char *data;
+    unsigned len;
+    int result = sasl_server_start(conn_, "GSSAPI", NULL, 0, &data, &len);
+    SPDLOG_INFO("sasl_server_start result:{}", result);
+    if (result==SASL_OK)
+    {
+        /* authentication succeeded. Send client the protocol specific message
+        to say that authentication is complete */
+        SPDLOG_INFO("SASL authentication successful!");
+    }
+    else if(result==SASL_CONTINUE)
+    {
+        //retry again!
+        // 继续进行 SASL 身份验证过程
+        while (result == SASL_CONTINUE) {
+            SPDLOG_INFO("SASL authentication in progress...");
+            result = sasl_server_step(conn_, data, len, &data, &len);
+        }
+        if (result == SASL_OK) {
+            SPDLOG_INFO("SASL authentication successful!");
+        } else {
+            SPDLOG_ERROR("SASL authentication failed!, result:{}",result);
+            return result;
+        }
+    }
+    else
+    {
+        /* failure. Send protocol specific message that says authentication failed */
+        SPDLOG_ERROR("SASL authentication failed!, result:{}",result);
+        return result;
+    }
+    return result;
+}
+
 void TcpServer::Start()
 {
+    int res = saslServerInit();
+    if(res != SASL_OK)
+    {
+        SPDLOG_ERROR("saslServerInit failed result: {}", res);
+        return;
+    }
+    else
+    {
+        SPDLOG_INFO("saslServerInit success result: {}", res);
+    }
+
     asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), port_);
     asio::ip::tcp::acceptor acptr(io_context_, endpoint);
 
@@ -65,7 +255,17 @@ void TcpServer::onSocketAccept(std::shared_ptr<asio::ip::tcp::socket> sockCli)
     char* buf = new char[0xFF];
     SPDLOG_INFO("new conn from {}:{}", sockCli->remote_endpoint().address().to_string() ,sockCli->remote_endpoint().port());
 
-	
+    int res = saslServerStart();
+    if(res != SASL_OK)
+    {
+        SPDLOG_ERROR("saslServerStart failed result: {}", res);
+        return;
+    }
+    else
+    {
+        SPDLOG_INFO("saslServerStart success result: {}", res);
+    }
+
     //1缓存区都需要通过buffer函数来构造函数可接受的缓存区结构体，否则会报错误
     //buffer函数，它的作用其实就是构造一个结构体,大致如下：
     // struct{
