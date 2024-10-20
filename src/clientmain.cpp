@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <iostream>
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
@@ -11,6 +12,7 @@
 #include <asio/write.hpp>
 #include "asio/detached.hpp"
 #include <sasl/sasl.h>
+#include "util.h"
 
 using namespace std;
 using namespace asio;
@@ -26,168 +28,175 @@ using asio::use_awaitable;
 using asio::ip::tcp;
 namespace this_coro = asio::this_coro;
 
-std::string getauthorizationid() {
-    return "cyq";
-}
+const char *sasl_mech = "GSSAPI";
 
-std::string getusername() {
-    return "cyq";
-}
+// std::string getauthorizationid() {
+//     return "cyq";
+// }
 
-std::string getsimple() {
-    // 这里您需要提供客户端用户的密码
-    return "cyq";
-}
+// std::string getusername() {
+//     return "cyq";
+// }
 
-std::string getrealm() {
-    return "CPPTEAM.DOO.COM";
-}
+// std::string getsimple() {
+//     // 这里您需要提供客户端用户的密码
+//     return "cyq";
+// }
 
+// std::string getrealm() {
+//     return "CPPTEAM.DOO.COM";
+// }
+
+// static int get_user(void *context __attribute__((unused)),
+//                   int id,
+//                   const char **result,
+//                   unsigned *len)
+// {
+//     const char *testuser = "test@CPPTEAM.DOO.COM";
+
+//     if (! result)
+//         return SASL_BADPARAM;
+
+//     switch (id) {
+//     case SASL_CB_USER:
+//     case SASL_CB_AUTHNAME:
+//         *result = testuser;
+//         break;
+//     default:
+//         return SASL_BADPARAM;
+//     }
+
+//     if (len) *len = strlen(*result);
+
+//     return SASL_OK;
+// }
+
+// const char *testpass = NULL;
+// const char *testhost = NULL;
+
+// static int get_pass(sasl_conn_t *conn __attribute__((unused)),
+//           void *context __attribute__((unused)),
+//           int id,
+//           sasl_secret_t **psecret)
+// {
+//     size_t len;
+//     static sasl_secret_t *x;
+
+//     /* paranoia check */
+//     if (! conn || ! psecret || id != SASL_CB_PASS)
+//         return SASL_BADPARAM;
+
+//     len = strlen(testpass);
+
+//     x = (sasl_secret_t *) realloc(x, sizeof(sasl_secret_t) + len);
+
+//     if (!x) {
+//         return SASL_NOMEM;
+//     }
+
+//     x->len = len;
+//     strcpy((char *)x->data, testpass);
+
+//     *psecret = x;
+//     return SASL_OK;
+// }
 
 int main() {
+	sasl_callback_t callbacks[4] = {};
+	/* initialize the sasl library */
+    callbacks[0].id = SASL_CB_GETPATH;
+    callbacks[0].proc = (int (*)(void))&getpath;
+    callbacks[0].context = NULL;
+    callbacks[1].id = SASL_CB_LIST_END;
+    callbacks[1].proc = NULL;
+    callbacks[1].context = NULL;
+    callbacks[2].id = SASL_CB_LIST_END;
+    callbacks[2].proc = NULL;
+    callbacks[2].context = NULL;
+    callbacks[3].id = SASL_CB_LIST_END;
+    callbacks[3].proc = NULL;
+    callbacks[3].context = NULL;
+
 
 	sasl_conn_t *conn = nullptr;
-	{
-		// 初始化 SASL 环境
-		int rc;
-		//sasl_conn_t* conn;
-		sasl_callback_t client_callbacks[] = {
-			{
-				.id = SASL_CB_AUTHNAME,
-				.proc = (int (*)(void))getauthorizationid,
-				.context = NULL
-			},
-			{
-				.id = SASL_CB_USER,
-				.proc = (int (*)(void))getusername,
-				.context = NULL
-			},
-			{
-				.id = SASL_CB_PASS,
-				.proc = (int (*)(void))getsimple,
-				.context = NULL
-			},
-			{
-				.id = SASL_CB_GETREALM,
-				.proc = (int (*)(void))getrealm,
-				.context = NULL
-			},
-			{
-				.id = SASL_CB_LIST_END,
-				.proc = NULL,
-				.context = NULL
-			}
-		};
-		rc = sasl_client_init(client_callbacks);
-		SPDLOG_INFO("sasl_client_init result: {}", rc);
-		if (rc != SASL_OK) {
-			SPDLOG_ERROR("Failed to initialize SASL: {}", rc);
-			return 1;
-		}
+	// 初始化 SASL 环境
+	int rc = sasl_client_init(callbacks);
+	SPDLOG_INFO("sasl_client_init result: {}", rc);
+	if (rc != SASL_OK) {
+		SPDLOG_ERROR("Failed to initialize SASL: {}", rc);
+		return 1;
+	}
 
-		
+	// 创建 SASL 连接
+	rc = sasl_client_new("test", "CPPTEAM.DOO.COM", NULL, NULL, NULL, 0, &conn);
+	SPDLOG_INFO("sasl_client_new result: {}", rc);
+	if (rc != SASL_OK) {
+		SPDLOG_ERROR("Failed to create SASL connection: {}", rc);
+		return 1;
+	}
 
-		// 创建 SASL 连接
-		//rc = sasl_client_new("cyq", "CPPTEAM.DOO.COM", NULL, NULL, client_callbacks, 0, &conn);
-		rc = sasl_client_new("shaq", "127.0.0.1", "10.1.14.41", NULL, client_callbacks, 0, &conn);
-		SPDLOG_INFO("sasl_client_new result: {}", rc);
-		if (rc != SASL_OK) {
-			SPDLOG_ERROR("Failed to create SASL connection: {}", rc);
-			return 1;
-		}
+	//测试是否允许gssapi
+    is_support_gssapi(conn);
 
-		{
-			// 检查是否支持 GSSAPI 机制
-			const char *result, *tmp;
-			unsigned int len;
-			int ret;
-			ret  = sasl_listmech(conn, NULL, "", ",", "", &result, &len, NULL);
-			SPDLOG_INFO("sasl_listmech result: {}, listmech:{}", ret, result);
-			if (ret != SASL_OK) {
-				SPDLOG_INFO("sasl_listmech failed result: {}", ret);
-				// 处理获取可用机制列表失败的情况
-				return 1;
-			}
+	sasl_channel_binding_t cb = {0};
+	if (cb.name) {
+		sasl_setprop(conn, SASL_CHANNEL_BINDING, &cb);
+	}
 
-			// 搜索 result 字符串中是否包含 "GSSAPI"
-			tmp = result;
-			while ((tmp = strstr(tmp, "GSSAPI")) != NULL) {
-				// GSSAPI 机制可用
-				SPDLOG_INFO("GSSAPI mechanism is supported");
-				break;
-			}
+	const char *data;
+	unsigned int len;
+	const char *chosenmech = NULL;
 
-			if (tmp == NULL) {
-				// GSSAPI 机制不可用
-				SPDLOG_ERROR("GSSAPI mechanism is not supported");
-			}
-		}
-
-		// 设置 SASL 机制为 GSSAPI
-		rc = sasl_setprop(conn, SASL_AUTH_EXTERNAL, "GSSAPI");
-		SPDLOG_INFO("sasl_setprop result: {}", rc);
-		if (rc != SASL_OK) {
-			SPDLOG_ERROR("Failed to sasl_setprop SASL: {}", rc);
-			return 1;
-		}
+	rc = sasl_client_start(conn, sasl_mech, NULL, &data, &len, &chosenmech);
+	SPDLOG_INFO("sasl_client_start result: {}, chosenmech:{}", rc, chosenmech);
+	if (rc != SASL_OK && rc != SASL_CONTINUE) {
+		SPDLOG_ERROR("Failed to sasl_client_start result: {}", rc);
+		return 1;
 	}
 
 	asio::io_context io;
-	asio::ip::tcp::socket sock(io);
-	sock.connect(asio::ip::tcp::endpoint(asio::ip::address::from_string("127.0.0.1"),6688));
+	auto sock = std::make_shared<tcp::socket>(io);
+	sock->connect(asio::ip::tcp::endpoint(asio::ip::address::from_string("127.0.0.1"),6688));
 
+	char buf[8192];
+	while (rc == SASL_CONTINUE) {
+		send_string(sock, data, len);
+		len = 8192;
+		recv_string(sock, buf, &len, false);
+
+		rc = sasl_client_step(conn, buf, len, NULL, &data, &len);
+		if (rc != SASL_OK && rc != SASL_CONTINUE) {
+			SPDLOG_ERROR("Failed to sasl_client_step result: {}", rc);
+			return 1;
+		}
+	}
+
+	if (rc != SASL_OK) 
 	{
-		// 进行 SASL 身份验证
-		const char *data = NULL;
-		unsigned len = 0;
-		int result = 0;
-		//const char *mechlist = "GSSAPI SCRAM-SHA-1 DIGEST-MD5 EXTERNAL NTLM LOGIN PLAIN ANONYMOUS";
-		const char *mechlist = "GSSAPI";
-		const char * mech = nullptr;
-		
-		do {
-			//result = sasl_client_start(conn, "GSSAPI", NULL, &data, &len, NULL);
-			SPDLOG_INFO("sasl_client_start begin!!!");
-			result = sals_client_start(conn, mechlist, NULL, &data, &len, &mech);
-			SPDLOG_INFO("sasl_client_start result: {}, mech:{}", result, mech);
-			if (result==SASL_INTERACT)
-			{
-				/* [deal with the interactions. See interactions section below] */
-				SPDLOG_INFO("sasl_client_start result: {}, deal with the interactions. See interactions section below", result);
-			}
-		} while (result==SASL_INTERACT || result == SASL_CONTINUE);
-
-		if (result!=SASL_OK) /* [failure] */
-		{
-			SPDLOG_ERROR("sasl_client_start failed!result: {}", result);
-		}
-		else
-		{
-			SPDLOG_INFO("sasl_client_start ok!result: {}", result);
-		}
-
-		//agin 
-		result = sasl_client_start(conn, "GSSAPI", NULL, &data, &len, NULL);
-		if (result!=SASL_OK) /* [failure] */
-		{
-			SPDLOG_ERROR("[again]sasl_client_start failed!result: {}", result);
-		}
-		else
-		{
-			SPDLOG_INFO("[again]sasl_client_start ok!result: {}", result);
-		}
+		SPDLOG_ERROR("Failed to sasl result: {}", rc);
+		return 1;
 	}
 
-	char buf[0xFF];
-	while (true) {
-		cin >> buf;
-		sock.send(asio::buffer(buf));
-		memset(buf, 0, 0xFF);
-		sock.receive(buffer(buf));
-		SPDLOG_INFO("recv msg {}", buf);
-
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+	if (len > 0) {
+		send_string(sock, data, len);
 	}
-	sock.close();
-	::system("pause");
+
+	SPDLOG_INFO("client Auth Done!!!");
+	
+	{
+		char buf[0xFF];
+		while (true) {
+			cin >> buf;
+			sock->send(asio::buffer(buf));
+			memset(buf, 0, 0xFF);
+			sock->receive(buffer(buf));
+			SPDLOG_INFO("recv msg {}", buf);
+
+			std::this_thread::sleep_for(std::chrono::seconds(2));
+		}
+		sock->close();
+		::system("pause");
+	}
+
+	return 0;
 }

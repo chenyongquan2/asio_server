@@ -31,11 +31,12 @@ add_runenvs("PATH", "$(projectdir)/bin")
 set_exceptions "cxx"
 set_encodings "utf-8"
 
-
+add_requires("conan::cyrus-sasl/2.1.28", { alias = "cyrus-sasl" , configs = {options = {"cyrus-sasl/*:with_gssapi=True", "cyrus-sasl/*:shared=True"}}})
+-- with_krb4
+-- with_gssapi
 add_requires("conan::asio/1.24.0", { alias = "asio" })
 add_requires("spdlog")
 add_requires("fmt", { configs = {header_only = true}})
-add_requires("conan::cyrus-sasl/2.1.28", { alias = "cyrus-sasl" , configs = {options = {"cyrus-sasl/*:shared=True"}}})
 
 
 add_cxxflags ("cl::/Zc:__cplusplus")
@@ -45,7 +46,7 @@ add_cxxflags ("/bigobj")
 
 set_languages "c++20"
 
-add_packages("asio","spdlog","fmt","cyrus-sasl")
+add_packages("cyrus-sasl","asio","spdlog","fmt")
 
 -- case1)单项目
 --target "asio_srever"

@@ -47,7 +47,7 @@ private:
 private:
     //sasl
     int saslServerInit();
-    int saslServerStart();
+    int saslServerStart(std::shared_ptr<asio::ip::tcp::socket> sockCli);
 
 private:
     static asio::io_context io_context_;
